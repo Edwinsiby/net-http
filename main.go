@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"time"
 )
 
 func main() {
@@ -11,6 +12,7 @@ func main() {
 	http.HandleFunc("/signup", SignupPage)
 	http.HandleFunc("/login", LoginPage)
 	http.HandleFunc("/welcome", WelcomePage)
+	http.HandleFunc("/logout", LogOut)
 
 	// Serve static files from the "static" directory.
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -53,6 +55,17 @@ func LoginPage(w http.ResponseWriter, r *http.Request) {
 		// Perform authentication logic here (e.g., check against a database).
 		// For simplicity, we'll just check if the username and password are both "admin".
 		if username == "admin" && password == "admin" {
+			// Create a new cookie.
+			cookie := http.Cookie{
+				Name:     "user",
+				Value:    username,
+				Expires:  time.Now().Add(24 * time.Hour), // Cookie expires in 24 hours.
+				HttpOnly: true,
+			}
+
+			// Set the cookie in the response.
+			http.SetCookie(w, &cookie)
+
 			// Successful login, redirect to a welcome page.
 			http.Redirect(w, r, "/welcome", http.StatusSeeOther)
 			return
@@ -74,5 +87,22 @@ func LoginPage(w http.ResponseWriter, r *http.Request) {
 
 // WelcomePage is the handler for the welcome page.
 func WelcomePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome, you have successfully logged in!")
+	tmpl, err := template.ParseFiles("templates/home.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	tmpl.Execute(w, "Welcome, you have successfully logged in!")
+}
+
+func LogOut(w http.ResponseWriter, r *http.Request) {
+	cookie := http.Cookie{
+		Name:    "user",
+		Value:   "",
+		Expires: time.Now().Add(-1 * time.Hour), // Expire in the past to delete the cookie.
+	}
+	http.SetCookie(w, &cookie)
+
+	// Redirect to the login page after logging out.
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
